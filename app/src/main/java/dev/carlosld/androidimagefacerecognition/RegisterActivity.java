@@ -4,6 +4,7 @@ import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
 
@@ -16,7 +17,12 @@ import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.PointF;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,8 +32,20 @@ import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.face.Face;
+import com.google.mlkit.vision.face.FaceContour;
+import com.google.mlkit.vision.face.FaceDetection;
+import com.google.mlkit.vision.face.FaceDetector;
+import com.google.mlkit.vision.face.FaceDetectorOptions;
+import com.google.mlkit.vision.face.FaceLandmark;
+
 import java.io.FileDescriptor;
 import java.io.IOException;
+import java.util.List;
 
 public class RegisterActivity extends AppCompatActivity {
 
@@ -38,7 +56,15 @@ public class RegisterActivity extends AppCompatActivity {
 
 
     //TODO declare face detector
+    // High-accuracy landmark detection and face classification
+    FaceDetectorOptions highAccuracyOpts =
+            new FaceDetectorOptions.Builder()
+                    .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+                    .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
+                    .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
+                    .build();
 
+    FaceDetector detector;
 
     //TODO declare face recognizer
 
@@ -54,6 +80,7 @@ public class RegisterActivity extends AppCompatActivity {
                         Bitmap inputImage = uriToBitmap(image_uri);
                         Bitmap rotated = rotateBitmap(inputImage);
                         imageView.setImageBitmap(rotated);
+                        performFaceDetection(rotated);
                     }
                 }
             });
@@ -68,6 +95,7 @@ public class RegisterActivity extends AppCompatActivity {
                         Bitmap inputImage = uriToBitmap(image_uri);
                         Bitmap rotated = rotateBitmap(inputImage);
                         imageView.setImageBitmap(rotated);
+                        performFaceDetection(rotated);
                     }
                 }
             });
@@ -122,7 +150,7 @@ public class RegisterActivity extends AppCompatActivity {
         });
 
         //TODO initialize face detector
-
+        detector = FaceDetection.getClient(highAccuracyOpts);
 
         //TODO initialize face recognition model
 
@@ -173,7 +201,39 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     //TODO perform face detection
+    private void performFaceDetection(Bitmap input) {
+        Bitmap mutableBitmap = input.copy(Bitmap.Config.ARGB_8888, true);
+        Canvas canvas = new Canvas(mutableBitmap);
 
+        InputImage image = InputImage.fromBitmap(input, 0);
+        Task<List<Face>> result =
+                detector.process(image)
+                        .addOnSuccessListener(
+                                new OnSuccessListener<List<Face>>() {
+                                    @Override
+                                    public void onSuccess(List<Face> faces) {
+                                        Log.d("tryFace", "Len = " + faces.size());
+                                        for (Face face : faces) {
+                                            Rect bounds = face.getBoundingBox();
+                                            Paint paint = new Paint();
+                                            paint.setColor(Color.RED);
+                                            paint.setStyle(Paint.Style.STROKE);
+                                            paint.setStrokeWidth(5);
+
+                                            canvas.drawRect(bounds, paint);
+                                        }
+                                        imageView.setImageBitmap(mutableBitmap);
+                                    }
+                                })
+                        .addOnFailureListener(
+                                new OnFailureListener() {
+                                    @Override
+                                    public void onFailure(@NonNull Exception e) {
+                                        // Task failed with an exception
+                                        // ...
+                                    }
+                                });
+    }
 
     //TODO perform face recognition
 
